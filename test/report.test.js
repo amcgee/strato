@@ -199,7 +199,7 @@ describe('report parser', function() {
       var sequence = 4;
       var uuid = 5;
       var flags = 6;
-      var timestamp = new Date('2015-03-11 15:23:59 UTC');
+      var timestamp = new Date('2015-03-11 15:23:59 UTC').getTime();
       var batteryVoltage = 8;
       var bulkAggregates = {count: 1, min: 2, max: 3};
       var intervalAggregates = [
@@ -259,18 +259,28 @@ describe('report parser', function() {
   });
 
   describe('v4 report', function() {
+    var lastReportTimestamp = Math.floor( new Date('2011-03-10 00:00:00 UTC').getTime() / 1000 );
+    var lastReportTime = new Date('2015-05-10 18:23:59 UTC').getTime(); // 3 hour skew, factor 4/3
+    var reportTime = new Date('2015-05-11 15:23:59 UTC').getTime();
+    var reportTimestamp = Math.floor( new Date('2011-03-11 00:00:00 UTC').getTime() / 1000 );
+    var entries = [{
+      timestamp: Math.floor( new Date('2011-03-10 13:14:21 UTC').getTime() / 1000 ),
+      value: 1234,
+      streamID: 7
+    }];
+    var skewless_entry_timestamp = reportTime - ((reportTimestamp - entries[0].timestamp)*1000);
+    var real_entry_timestamp = Math.floor( lastReportTime + ((entries[0].timestamp - lastReportTimestamp)*1000*4/3) );
+    
+    var version = 4;
+    var batteryVoltage = 5;
+    var uuid = 6;
 
-    it('can parse a v4 report', function() {
-      var version = 4;
-      var batteryVoltage = 5;
-      var uuid = 6;
-      var timestamp = new Date('2015-03-11 15:23:59 UTC');
-
+    var buildV4Report = function() {
       var bytes = new Buffer(30);
       bytes[0] = version;
       bytes.writeUInt16LE(batteryVoltage, 2);
       bytes.writeUInt32LE(uuid, 4);
-      bytes.writeUInt32LE(getReportTimestamp(timestamp), 8);
+      bytes.writeUInt32LE(reportTimestamp, 8);
 
       // Add one ignored
 
@@ -278,22 +288,18 @@ describe('report parser', function() {
 
       // Add one normal
 
-      var entries = [{
-        timestamp: new Date('2011-03-11 13:14:21 UTC'),
-        value: 1234,
-        streamID: 7
-      }];
-
-      bytes.writeUInt32LE(getReportTimestamp(entries[0].timestamp), 21);
+      bytes.writeUInt32LE(entries[0].timestamp, 21);
       bytes.writeUInt32LE(entries[0].value, 25);
       bytes[29] = entries[0].streamID;
-
-      var report = parseReport(bytes.toString('base64'));
+      return bytes;
+    }
+    it('can parse a v4 report', function() {
+      var report = parseReport(buildV4Report(), reportTime);
 
       expect(report.version).to.be(version);
       expect(report.batteryVoltage).to.be(getBatteryVoltage(batteryVoltage));
       expect(report.uuid).to.be(uuid);
-      expect(report.timestamp).to.eql(timestamp);
+      expect(report.timestamp).to.eql(reportTimestamp);
       expect(report.entries).to.eql(entries);
     });
 
@@ -308,6 +314,38 @@ describe('report parser', function() {
       }
 
       expect(parseBadLength).to.throwError();
+    });
+
+    it('resolves data timestamps with no baseline (last report time)', function() {
+      var report = parseReport(buildV4Report(), reportTime);
+
+      for ( var stream in report.data )
+      {
+        expect(stream).to.eql(7);
+        for ( var t in report.data[stream] )
+        {
+          console.log(new Date(t));
+          console.log(new Date(skewless_entry_timestamp));
+          expect(t).to.eql(skewless_entry_timestamp);
+          expect(report.data[stream][t]).to.eql(1234);
+        }
+      }
+    });
+
+    it('resolves data timestamps with an arbitrary baseline (last report time)', function() {
+      var report = parseReport(buildV4Report(), reportTime, lastReportTime, lastReportTimestamp*1000);
+
+      for ( var stream in report.data )
+      {
+        expect(stream).to.eql(7);
+        for ( var t in report.data[stream] )
+        {
+          console.log(new Date(t));
+          console.log(new Date(real_entry_timestamp));
+          expect(t).to.eql(real_entry_timestamp);
+          expect(report.data[stream][t]).to.eql(1234);
+        }
+      }
     });
 
   });
