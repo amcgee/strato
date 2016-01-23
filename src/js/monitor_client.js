@@ -28,7 +28,7 @@ function prettifyTimeDelta(start, end) {
 }
 
 var offset = 0;
-var data = [];
+var data = {};
 var keys = {}
 
 function addKey(key) {
@@ -37,18 +37,19 @@ function addKey(key) {
 	$('#metric-selector li').click(function(e) {
 		e.preventDefault();
 		selectKey($(this).text());
-	})
+	});
 }
 function selectKey(key) {
 	selectedKey = key;
 	$('#metric-selected').text(key);
-	if ( !dataGraph )
-		return;
-	_.forEach(_.keys(keys), function(k, i) {
-		dataGraph.setVisibility(i, k==key);
-	});
+	// if ( !dataGraph )
+	// 	return;
+	// _.forEach(_.keys(keys), function(k, i) {
+	// 	dataGraph.setVisibility(i, k==key);
+	// });
+	redraw();
 }
-var selectedKey;
+var selectedKey = null;
 
 function mouseDown(event, g, context) {
   context.initializeMouseDown(event, g, context);
@@ -184,24 +185,25 @@ function redraw()
 		return;
 
 	dataGraph = new Dygraph(document.getElementById('monitor-data-chart'),
-		data,
+		data[selectedKey],
 		{
 			// customBars: true,
-      title: 'Data',
-      //ylabel: 'Temperature (F)',
-      legend: 'always',
-      labelsDivStyles: { 'textAlign': 'right' },
-      showRangeSelector: true,
-			labels: _.flatten(['Time', _.keys(keys)]),
+			title: 'Data',
+			//ylabel: 'Temperature (F)',
+			legend: 'always',
+			labelsDivStyles: { 'textAlign': 'right' },
+			showRangeSelector: true,
+			labels: ['Time', selectedKey],
 			interactionModel: {
 				'mousedown' : mouseDown,
-        'mousemove' : mouseMove,
-        'mouseup' : mouseUp,
-        'click' : mouseClick,
-        'dblclick' : mouseDblClick,
-        'mousewheel' : mouseScroll
+		        'mousemove' : mouseMove,
+		        'mouseup' : mouseUp,
+		        'click' : mouseClick,
+		        'dblclick' : mouseDblClick,
+		        'mousewheel' : mouseScroll
 			}
 		});
+	console.log(selectedKey, data[selectedKey]);
 	// dataGraph = Morris.Line({
 	// 	element: 'monitor-data-chart',
 	// 	data: data,
@@ -210,8 +212,6 @@ function redraw()
 	// 	labels: [selectedKey]
 	// })
 }
-addKey('battery');
-selectKey('battery');
 
 function refresh() {
 	$.getJSON( "/api/v1/monitors/" + myID + "/reports?sort=-report.timestamp&skip=" + offset, function(reports) {
@@ -225,28 +225,45 @@ function refresh() {
 			return;
 		$('#last-report-time').text( prettifyTimeDelta(new Date(reports[0].report.timestamp).getTime(), new Date().getTime()) + " ago" );
 
+		console.log(reports);
 		_.forEachRight(reports, function(r) {
-			var item = [];
-			_.fill(item, null,  0, _.keys(keys).length+1);
-			item[0] = new Date(r.report.timestamp).getTime() + new Date('January 1, 1970 GMT').getTime();
-			item[0] = new Date(item[0]);
-			item[_.indexOf(_.keys(keys), 'battery')+1] = r.report.batteryVoltage;
-			_.forEach( r.report.bulkAggregates, function(val, key) {
-				if ( !keys[key] )
-				{
-					addKey(key);
-				}
-				item[_.indexOf(_.keys(keys),key)+1] = val;
-			})
-			data.push(item);
+			var reportDate = new Date(r.report.timestamp).getTime() + new Date('January 1, 1970 GMT').getTime();
+			reportDate = new Date(reportDate);
+
+			if ( !keys['battery'] )
+			{
+				addKey('battery');
+				data['battery'] = [];
+			}
+			data['battery'].push([reportDate, r.report.batteryVoltage]);
+			if ( r.version < 4 )
+			{
+				_.forEach( r.report.bulkAggregates, function(val, key) {
+					if ( !keys[key] )
+					{
+						addKey(key);
+						data[key] = [];
+					}
+					data[key].push([reportDate, val]);
+				})
+			}
+			else
+			{
+				_.forEach( r.report.entries, function(val) {
+					var item = [];
+					key = val.streamID;
+					if ( !keys[key] )
+					{
+						addKey(key);
+						data[key] = [];
+					}
+					data[key].push([new Date(val.timestamp), val.value]);
+				})
+			}
 		});
 
-		if ( !dataGraph )
-			redraw();
-		else
-			dataGraph.updateOptions({'file': data, 'labels': _.flatten(['Time', _.keys(keys)]) });
-
-		selectKey(selectedKey);
+		console.log(data);
+		selectKey(selectedKey || 'battery');
 	})
 }
 
