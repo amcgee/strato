@@ -16,6 +16,7 @@ $(function() {
   var tbl = $('#dataTables-example').dataTable( {
     columns: [
       { data: 'name' },
+      { data: 'last_report_time' }
       // { data: 'location' },
       // { data: 'gsmid' },
       // { data: 'timeSinceLastReport' },
@@ -26,6 +27,8 @@ $(function() {
       dataSrc: function( json ) {
         for ( var i in json ) {
           json[i]['name'] = escapeHtml(json[i]['name'])||"";
+          var ts = new Date(json[i]['last_report_time']);
+          json[i]['last_report_time'] = escapeHtml(ts.toDateString() + " " + ts.getHours() + ":" + ts.getMinutes());
           // json[i]['location'] = escapeHtml(json[i]['location'])||"";
           // json[i]['gsmid'] = escapeHtml(json[i]['gsmid'])||"";
           // json[i]['timeSinceLastReport'] = escapeHtml(json[i]['timeSinceLastReport'])||"";

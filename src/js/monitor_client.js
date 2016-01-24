@@ -223,7 +223,7 @@ function refresh() {
 		}
 		if ( reports.length == 0 ) // None to add
 			return;
-		$('#last-report-time').text( prettifyTimeDelta(new Date(reports[0].report.timestamp).getTime(), new Date().getTime()) + " ago" );
+		$('#last-report-time').text( prettifyTimeDelta(new Date(reports[0].received_at).getTime(), new Date().getTime()) + " ago" );
 
 		console.log(reports);
 		_.forEachRight(reports, function(r) {
@@ -235,9 +235,9 @@ function refresh() {
 				addKey('battery');
 				data['battery'] = [];
 			}
-			data['battery'].push([reportDate, r.report.batteryVoltage]);
 			if ( r.version < 4 )
 			{
+				data['battery'].push([reportDate, r.report.batteryVoltage]);
 				_.forEach( r.report.bulkAggregates, function(val, key) {
 					if ( !keys[key] )
 					{
@@ -249,15 +249,15 @@ function refresh() {
 			}
 			else
 			{
-				_.forEach( r.report.entries, function(val) {
-					var item = [];
-					key = val.streamID;
-					if ( !keys[key] )
+				_.forEach( r.data, function(items, series) {
+					if ( !keys[series] )
 					{
-						addKey(key);
-						data[key] = [];
+						addKey(series);
+						data[series] = [];
 					}
-					data[key].push([new Date(val.timestamp), val.value]);
+					_.forEach( items, function(item) {
+						data[series].push([new Date(item[0]), item[1]]);
+					})
 				})
 			}
 		});
@@ -271,22 +271,22 @@ $(function() {
 	myID = getParameterByName('id');
 	$.getJSON( "/api/v1/monitors/" + myID, function(monitor) {
 		console.log(monitor);
-		$('#monitor-name').text(monitor.name)
-			.editable({
-		    type: 'text',
-		    title: 'Enter name',
-		    mode: 'inline'
-			})
-			.on('save', function(e, params) {
-				var opts = {
-					type: 'patch',
-					url: '/api/v1/monitors/'+myID,
-					data: {
-						name: params.newValue
-					}
-				}
-				$.ajax( opts, false );
-			})
+		// $('#monitor-name').text(monitor.name)
+		// 	.editable({
+		//     type: 'text',
+		//     title: 'Enter name',
+		//     mode: 'inline'
+		// 	})
+		// 	.on('save', function(e, params) {
+		// 		var opts = {
+		// 			type: 'patch',
+		// 			url: '/api/v1/monitors/'+myID,
+		// 			data: {
+		// 				name: params.newValue
+		// 			}
+		// 		}
+		// 		$.ajax( opts, false );
+		// 	})
 		refresh();
 		setInterval(refresh , 2000);
 	});

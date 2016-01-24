@@ -50,7 +50,7 @@ var addMarkersToMap = function( filter ) {
 
 $.getJSON( "/api/v1/monitors", function(monitors) {
 	data.monitors = monitors;
-	$.getJSON( "/api/v1/reports", function(reports) {
+	$.getJSON( "/api/v1/reports?fields=received_at", function(reports) {
 		data.reports = reports;
 		var failed_count = _.reduce(monitors, function(r, val) {
 			return (val.status == 'failed')? r+1 : r;
@@ -63,7 +63,7 @@ $.getJSON( "/api/v1/monitors", function(monitors) {
 		}, 0);
 
 		var dailyCount = _.reduce(reports, function(count, current) {
-			var timestamp = new Date(new Date(current['report']['timestamp']).getTime() + new Date('January 1, 1970 GMT').getTime());
+			var timestamp = new Date(current.received_at);
 			if ( timestamp > (new Date().setHours(0,0,0,0)) )
 				return count+1;
 			else
